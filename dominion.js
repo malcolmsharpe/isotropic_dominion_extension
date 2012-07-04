@@ -9,6 +9,10 @@ var player_re = "";
 // Count of the number of players in the game.
 var player_count = 0;
 
+// Black Market deck order, to the extent we know it.
+var BLACK_MARKET_DECK_SIZE = 25;
+var black_market_deck = null;
+
 // Places to print number of cards and points.
 var deck_spot;
 var points_spot;
@@ -648,6 +652,38 @@ function maybeHandleNobleBrigand(elems, text_arr, text) {
   return false;
 }
 
+function maybeHandleBlackMarketDeck(elems, text_arr, text) {
+  // Drawing.
+  if (text.match(/from the Black Market deck\./)) {
+    for (elem in elems) {
+      if (elems[elem].innerText != undefined) {
+        var card = elems[elem];
+        var singular_card_name = getSingularCardName(card.innerText);
+        if (singular_card_name != "Black Market") {
+          black_market_deck.shift();
+        }
+      }
+    }
+    return true;
+  }
+
+  // Putting back.
+  if (text.match(/to the bottom of the Black Market deck\./)) {
+    for (elem in elems) {
+      if (elems[elem].innerText != undefined) {
+        var card = elems[elem];
+        var singular_card_name = getSingularCardName(card.innerText);
+        if (singular_card_name != "Black Market") {
+          black_market_deck.push(singular_card_name);
+        }
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
 function maybeHandleVp(text) {
   var re = new RegExp("[+]([0-9]+) ▼");
   var arr = text.match(re);
@@ -736,6 +772,7 @@ function processLogEntry(node) {
   if (maybeHandleTrader(elems, text, node.innerText)) return;
   if (maybeHandleTunnel(elems, text, node.innerText)) return;
   if (maybeHandleNobleBrigand(elems, text, node.innerText)) return;
+  if (maybeHandleBlackMarketDeck(elems, text, node.innerText)) return;
 
   if (text[0] == "trashing") {
     var player = last_player;
@@ -879,6 +916,10 @@ function initialize(doc) {
   scopes = [];
 
   players = new Object();
+  black_market_deck = new Array();
+  for (var i = 0; i < BLACK_MARKET_DECK_SIZE; ++i) {
+    black_market_deck.push("?");
+  }
 
   // Setup the player rewrites. Just add self for now.
   player_rewrites = new Object();
@@ -960,9 +1001,11 @@ function maybeIntroducePlugin() {
     writeText("http://goo.gl/iDihS");
     writeText("Type !status to see the current score.");
     writeText("Type !details to see deck details for each player.");
+    writeText("Type !blackmarket to see the Black Market deck.");
     if (getOption("allow_disable")) {
       writeText("Type !disable by turn 5 to disable the point counter.");
     }
+    writeText("ATTN: Experimental version with additional features!");
   }
 }
 
@@ -1004,6 +1047,14 @@ function maybeShowDetails(request_time) {
   }
 }
 
+function maybeShowBlackMarket(request_time) {
+  if (last_status_print < request_time) {
+    last_status_print = new Date().getTime();
+
+    writeText('>> Black Market deck: ' + JSON.stringify(black_market_deck));
+  }
+}
+
 function storeLog() {
   if (!debug_mode) {
     localStorage["log"] = $('#full_log').html();
@@ -1032,6 +1083,7 @@ function handleChatText(speaker, text) {
 
   if (text == " !status") delayedRunCommand("maybeShowStatus");
   if (text == " !details") delayedRunCommand("maybeShowDetails");
+  if (text == " !blackmarket") delayedRunCommand("maybeShowBlackMarket");
 
   if (getOption("allow_disable") && text == " !disable" && turn_number <= 5) {
     localStorage.setItem("disabled", "t");
